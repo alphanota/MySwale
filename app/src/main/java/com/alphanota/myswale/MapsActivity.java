@@ -1,23 +1,38 @@
 package com.alphanota.myswale;
 
 import androidx.fragment.app.FragmentActivity;
-import android.os.Bundle;
+import androidx.lifecycle.Observer;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.lifecycle.ViewModelProviders;
 
+import android.os.Bundle;
+import android.util.Log;
+import android.widget.Toast;
+
+import com.alphanota.myswale.model.Swale;
+import com.alphanota.myswale.network.Resource;
+import com.alphanota.myswale.viewmodel.MapViewModel;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapView;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.maps.android.data.geojson.GeoJsonFeature;
 import com.google.maps.android.data.geojson.GeoJsonLayer;
 
 import org.json.JSONException;
 
 import java.io.IOException;
+import java.util.List;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
     private GoogleMap mMap;
+
+    private MapViewModel mapViewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,13 +58,54 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
+
         // Add a marker in Sydney and move the camera
         LatLng sydney = new LatLng(-34, 151);
         mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
         mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
 
+        //loadSwalesfromGeoJson(mMap);
+
+
+        initViewModel();
+
+
+    }
+
+
+    private void initViewModel(){
+        mapViewModel = ViewModelProviders.of(this).get(MapViewModel.class);
+
+        mapViewModel.getAllSwales().observe(this, listResource -> {
+            if(listResource.status == Resource.Status.SUCCESS) {
+                mMap.clear();
+                for (Swale swale: listResource.data) {
+                    addSwaleToMap(swale);
+                }
+
+            }
+            else if (listResource.status == Resource.Status.ERROR) {
+                Toast.makeText(this,listResource.message,Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void addSwaleToMap(Swale swale) {
+
+        LatLng latLng = GeoFactory.GeomToLatLng(swale.the_geom);
+
+        Marker marker = mMap.addMarker(new MarkerOptions()
+                .position(latLng)
+                .title(String.valueOf(swale.asset_id)));
+
+        marker.setTag(swale);
+
+    }
+
+
+    private void loadSwalesfromGeoJson(GoogleMap map){
         try {
-            GeoJsonLayer layer = new GeoJsonLayer(googleMap, R.raw.dep_gi, this);
+            GeoJsonLayer layer = new GeoJsonLayer(map, R.raw.dep_gi, this);
             layer.addLayerToMap();
         } catch (IOException e) {
             e.printStackTrace();
